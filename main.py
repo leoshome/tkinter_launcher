@@ -63,6 +63,14 @@ class FileSystemTreeView:
         self.file_listbox = tk.Listbox(self.right_frame, width=30, height=20)
         self.file_listbox.grid(row=1, column=0, pady=10)
 
+        # Add "貼指令" button
+        self.paste_button = ttk.Button(self.right_frame, text="貼指令", command=self.move_files)
+        self.paste_button.grid(row=2, column=0, pady=10)
+
+        # Add new file_listbox
+        self.command_listbox = tk.Listbox(self.right_frame, width=30, height=20)
+        self.command_listbox.grid(row=3, column=0, pady=10)
+
         # 綁定雙擊事件來展開/收縮節點
         self.tree.bind("<Double-1>", self.on_double_click)
 
@@ -212,6 +220,15 @@ class FileSystemTreeView:
         for item in self.selected_files:
             max_width = max(max_width, len(item))
         self.file_listbox.config(width=max_width + 5) # Add 5 for padding
+
+    def move_files(self):
+        # Get all items in the file_listbox
+        all_items = self.file_listbox.get(0, tk.END)
+        # Insert all items into the command_listbox
+        for item in all_items:
+            self.command_listbox.insert(tk.END, item)
+        # Delete all items from the original listbox
+        self.file_listbox.delete(0, tk.END)
 
 
 if __name__ == "__main__":
