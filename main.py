@@ -11,8 +11,15 @@ class FileSystemTreeView:
         self.selected_files = []
         #self.root.geometry("600x600")
         
+        # Style configuration
+        style = ttk.Style()
+        style.configure("TButton", font=("", 16))
+        style.configure("TLabel", font=("", 16))
+        style.configure("TFrame", font=("", 16))
+        style.configure("Treeview", font=("", 16))
+
         # Main frame
-        self.main_frame = ttk.Frame(root)
+        self.main_frame = ttk.Frame(root, style="TFrame")
         self.main_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
@@ -60,16 +67,42 @@ class FileSystemTreeView:
         self.add_button.grid(row=0, column=0, pady=10)
 
         # Add listbox to right frame
-        self.file_listbox = tk.Listbox(self.right_frame, width=30, height=20)
-        self.file_listbox.grid(row=1, column=0, pady=10)
+        self.file_listbox_frame = ttk.Frame(self.right_frame)
+        self.file_listbox_frame.grid(row=1, column=0, pady=10, sticky=tk.NSEW)
+
+        self.file_listbox_yscrollbar = ttk.Scrollbar(self.file_listbox_frame)
+        self.file_listbox_yscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.file_listbox_xscrollbar = ttk.Scrollbar(self.file_listbox_frame, orient=tk.HORIZONTAL)
+        self.file_listbox_xscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.file_listbox = tk.Listbox(self.file_listbox_frame, width=30, height=12,
+                                        yscrollcommand=self.file_listbox_yscrollbar.set,
+                                        xscrollcommand=self.file_listbox_xscrollbar.set)
+        self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.file_listbox_yscrollbar.config(command=self.file_listbox.yview)
+        self.file_listbox_xscrollbar.config(command=self.file_listbox.xview)
 
         # Add "貼指令" button
         self.paste_button = ttk.Button(self.right_frame, text="貼指令", command=self.move_files)
         self.paste_button.grid(row=2, column=0, pady=10)
 
         # Add new file_listbox
-        self.command_listbox = tk.Listbox(self.right_frame, width=30, height=20)
-        self.command_listbox.grid(row=3, column=0, pady=10)
+        self.command_listbox_frame = ttk.Frame(self.right_frame)
+        self.command_listbox_frame.grid(row=3, column=0, pady=10, sticky=tk.NSEW)
+
+        self.command_listbox_yscrollbar = ttk.Scrollbar(self.command_listbox_frame)
+        self.command_listbox_yscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.command_listbox_xscrollbar = ttk.Scrollbar(self.command_listbox_frame, orient=tk.HORIZONTAL)
+        self.command_listbox_xscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.command_listbox = tk.Listbox(self.command_listbox_frame, width=30, height=12,
+                                           yscrollcommand=self.command_listbox_yscrollbar.set,
+                                           xscrollcommand=self.command_listbox_xscrollbar.set)
+        self.command_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.command_listbox_yscrollbar.config(command=self.command_listbox.yview)
+        self.command_listbox_xscrollbar.config(command=self.command_listbox.xview)
 
         # 綁定雙擊事件來展開/收縮節點
         self.tree.bind("<Double-1>", self.on_double_click)
@@ -101,7 +134,6 @@ class FileSystemTreeView:
             bitmask >>= 1
             
         return drives
-    
     def populate_root_folder(self, parent, path):
         try:
             # 只嘗試列出根目錄的第一級項目
@@ -110,7 +142,7 @@ class FileSystemTreeView:
                 item_path = os.path.join(path, item)
                 try:
                     is_directory = os.path.isdir(item_path)
-                    
+
                     # 獲取文件大小和修改日期
                     size = ""
                     date = ""
@@ -121,14 +153,13 @@ class FileSystemTreeView:
                         date = self.format_date(stats.st_mtime)
                     except:
                         pass
-                    
+
                     # 插入項目到 Treeview
                     item_node = self.tree.insert(parent, "end", text=item, values=(size, date))
-                    
+
                     # 如果是目錄，添加一個臨時子節點，使其可展開
                     if is_directory:
-                        # self.tree.insert(item_node, "end", text="Loading...", values=("", ""))
-                        self.populate_root_folder(item_node, item_path)
+                        self.tree.insert(item_node, "end", text="Loading...", values=("", ""))
                 except:
                     # 忽略無法訪問的項目
                     pass
@@ -164,11 +195,10 @@ class FileSystemTreeView:
     def add_selected_file(self):
        for item in self.tree.selection():
            file_path = self.get_full_path(item)
-           if file_path not in self.selected_files:
-               self.selected_files.append(file_path)
-               self.file_listbox.insert(tk.END, file_path)
-           self.adjust_listbox_width()
-           self.adjust_listbox_width()
+           if os.path.isfile(file_path):
+               if file_path not in self.selected_files:
+                   self.selected_files.append(file_path)
+                   self.file_listbox.insert(tk.END, file_path)
 
     # def load_children(self, parent, path):
     #     try:
@@ -215,11 +245,6 @@ class FileSystemTreeView:
         dt = datetime.fromtimestamp(timestamp)
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     
-    def adjust_listbox_width(self):
-        max_width = 0
-        for item in self.selected_files:
-            max_width = max(max_width, len(item))
-        self.file_listbox.config(width=max_width + 5) # Add 5 for padding
 
     def move_files(self):
         # Get all items in the file_listbox
