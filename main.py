@@ -8,28 +8,44 @@ class FileSystemTreeView:
     def __init__(self, root):
         self.root = root
         self.root.title("電腦文件結構")
-        self.root.geometry("800x600")
+        self.selected_files = []
+        #self.root.geometry("600x600")
         
-        # 創建框架來存放 Treeview 和捲動條
-        self.frame = ttk.Frame(root)
-        self.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # 創建垂直捲動條
-        self.scrollbar = ttk.Scrollbar(self.frame)
-        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # 設置 Treeview
-        self.tree = ttk.Treeview(self.frame, yscrollcommand=self.scrollbar.set)
-        self.tree.pack(fill=tk.BOTH, expand=True)
+        # Main frame
+        self.main_frame = ttk.Frame(root)
+        self.main_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
+        self.main_frame.rowconfigure(0, weight=1)
+        self.main_frame.columnconfigure(0, weight=1)
+        self.main_frame.columnconfigure(1, weight=1)
+
+        # Left frame for Treeview and scrollbar
+        self.left_frame = ttk.Frame(self.main_frame)
+        self.left_frame.grid(row=0, column=0, sticky=tk.NSEW)
+
+        # Right frame for button and listbox
+        self.right_frame = ttk.Frame(self.main_frame)
+        self.right_frame.grid(row=0, column=1, sticky=tk.NSEW)
+
+        # Treeview frame
+        self.tree_frame = ttk.Frame(self.left_frame)
+        self.tree_frame.grid(row=0, column=0, sticky=tk.NSEW)
+
+        # Scrollbar
+        self.scrollbar = ttk.Scrollbar(self.tree_frame)
+        self.scrollbar.grid(row=0, column=1, sticky=tk.NS)
+
+        # Treeview
+        self.tree = ttk.Treeview(self.tree_frame, yscrollcommand=self.scrollbar.set)
+        self.tree.grid(row=0, column=0, sticky=tk.NSEW)
         
         # 設置捲動條控制 Treeview
         self.scrollbar.config(command=self.tree.yview)
         
         # 設置 Treeview 欄位
         self.tree["columns"] = ("大小", "修改日期")
-        self.tree.column("#0", width=300, minwidth=250)
-        self.tree.column("大小", width=100, minwidth=80)
-        self.tree.column("修改日期", width=150, minwidth=120)
+        self.tree.column("#0", width=200, minwidth=50)
+        self.tree.column("大小", width=50, minwidth=50)
+        self.tree.column("修改日期", width=150, minwidth=100)
         
         # 設置 Treeview 標題
         self.tree.heading("#0", text="名稱", anchor=tk.W)
@@ -38,10 +54,18 @@ class FileSystemTreeView:
         
         # 在 Treeview 中填充電腦文件結構
         self.populate_tree()
-        
+
+        # Add button to right frame
+        self.add_button = ttk.Button(self.right_frame, text="加入指令檔案列表>>", command=self.add_selected_file)
+        self.add_button.grid(row=0, column=0, pady=10)
+
+        # Add listbox to right frame
+        self.file_listbox = tk.Listbox(self.right_frame, width=30, height=20)
+        self.file_listbox.grid(row=1, column=0, pady=10)
+
         # 綁定雙擊事件來展開/收縮節點
         self.tree.bind("<Double-1>", self.on_double_click)
-    
+
     def populate_tree(self):
         # 獲取根目錄
         if sys.platform == "win32":
@@ -128,7 +152,16 @@ class FileSystemTreeView:
         else:
             # Unix/Linux/Mac 路徑
             return "/" + "/".join(path_parts[1:])  # 跳過第一個元素（根節點）
-    
+
+    def add_selected_file(self):
+       for item in self.tree.selection():
+           file_path = self.get_full_path(item)
+           if file_path not in self.selected_files:
+               self.selected_files.append(file_path)
+               self.file_listbox.insert(tk.END, file_path)
+           self.adjust_listbox_width()
+           self.adjust_listbox_width()
+
     # def load_children(self, parent, path):
     #     try:
     #         items = os.listdir(path)
@@ -168,12 +201,18 @@ class FileSystemTreeView:
                 return f"{size_bytes:.2f} {unit}"
             size_bytes /= 1024
         return f"{size_bytes:.2f} PB"
-    
     def format_date(self, timestamp):
         # 格式化日期
         from datetime import datetime
         dt = datetime.fromtimestamp(timestamp)
         return dt.strftime("%Y-%m-%d %H:%M:%S")
+    
+    def adjust_listbox_width(self):
+        max_width = 0
+        for item in self.selected_files:
+            max_width = max(max_width, len(item))
+        self.file_listbox.config(width=max_width + 5) # Add 5 for padding
+
 
 if __name__ == "__main__":
     root = tk.Tk()
