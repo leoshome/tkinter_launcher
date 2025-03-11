@@ -17,6 +17,10 @@ class FileSystemTreeView:
         style.configure("TFrame", font=("", 16))
         style.configure("Treeview", font=("", 16))
 
+        # 設置root的grid配置
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight=1)
+
         # Main frame
         self.main_frame = ttk.Frame(root, style="TFrame")
         self.main_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
@@ -27,6 +31,8 @@ class FileSystemTreeView:
         # Left frame for Treeview and scrollbar
         self.left_frame = ttk.Frame(self.main_frame)
         self.left_frame.grid(row=0, column=0, sticky=tk.NSEW)
+        self.left_frame.rowconfigure(0, weight=1)
+        self.left_frame.columnconfigure(0, weight=1)
 
         # Right frame for button and listbox
         self.right_frame = ttk.Frame(self.main_frame)
@@ -35,13 +41,15 @@ class FileSystemTreeView:
         # Treeview frame
         self.tree_frame = ttk.Frame(self.left_frame)
         self.tree_frame.grid(row=0, column=0, sticky=tk.NSEW)
+        self.tree_frame.rowconfigure(0, weight=1)
+        self.tree_frame.columnconfigure(0, weight=1)
 
         # Scrollbar
         self.scrollbar = ttk.Scrollbar(self.tree_frame)
         self.scrollbar.grid(row=0, column=1, sticky=tk.NS)
 
         # Treeview
-        self.tree = ttk.Treeview(self.tree_frame, yscrollcommand=self.scrollbar.set)
+        self.tree = ttk.Treeview(self.tree_frame, yscrollcommand=self.scrollbar.set, selectmode="extended")
         self.tree.grid(row=0, column=0, sticky=tk.NSEW)
         
         # 設置捲動條控制 Treeview
@@ -58,11 +66,8 @@ class FileSystemTreeView:
         self.tree.heading("大小", text="大小", anchor=tk.W)
         self.tree.heading("修改日期", text="修改日期", anchor=tk.W)
         
-        # 在 Treeview 中填充電腦文件結構
-        self.populate_tree()
-
         # Add button to right frame
-        self.add_button = ttk.Button(self.right_frame, text="加入指令檔案列表>>", command=self.add_selected_file)
+        self.add_button = ttk.Button(self.right_frame, text="加入到指令檔案列表>>>", command=self.add_selected_file)
         self.add_button.grid(row=0, column=0, pady=10)
 
         # Add label for first listbox
@@ -78,41 +83,58 @@ class FileSystemTreeView:
         self.file_listbox_xscrollbar = ttk.Scrollbar(self.file_listbox_frame, orient=tk.HORIZONTAL)
         self.file_listbox_xscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.file_listbox = tk.Listbox(self.file_listbox_frame, width=30, height=12,
-                                        yscrollcommand=self.file_listbox_yscrollbar.set,
-                                        xscrollcommand=self.file_listbox_xscrollbar.set)
+        # 將file_listbox改為多選模式
+        self.file_listbox = tk.Listbox(self.file_listbox_frame, width=30, height=12, font=("", 16),
+                                      yscrollcommand=self.file_listbox_yscrollbar.set,
+                                      xscrollcommand=self.file_listbox_xscrollbar.set,
+                                      selectmode=tk.EXTENDED)
         self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.file_listbox_yscrollbar.config(command=self.file_listbox.yview)
         self.file_listbox_xscrollbar.config(command=self.file_listbox.xview)
 
+        # 添加刪除按鈕
+        self.delete_button = ttk.Button(self.right_frame, text="刪除選定的檔案", command=self.delete_selected_items)
+        self.delete_button.grid(row=3, column=0, pady=5)
+
         # Add "貼指令" button
         self.paste_button = ttk.Button(self.right_frame, text="貼指令", command=self.move_files)
-        self.paste_button.grid(row=3, column=0, pady=10)
+        self.paste_button.grid(row=4, column=0, pady=10)
 
         # Add label for second listbox
         self.command_listbox_label = ttk.Label(self.right_frame, text="已執行的指令檔案：")
-        self.command_listbox_label.grid(row=4, column=0, sticky=tk.W, padx=5)
+        self.command_listbox_label.grid(row=5, column=0, sticky=tk.W, padx=5)
 
         # Add new file_listbox
         self.command_listbox_frame = ttk.Frame(self.right_frame)
-        self.command_listbox_frame.grid(row=5, column=0, pady=5, sticky=tk.NSEW)
+        self.command_listbox_frame.grid(row=6, column=0, pady=5, sticky=tk.NSEW)
 
         self.command_listbox_yscrollbar = ttk.Scrollbar(self.command_listbox_frame)
         self.command_listbox_yscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.command_listbox_xscrollbar = ttk.Scrollbar(self.command_listbox_frame, orient=tk.HORIZONTAL)
         self.command_listbox_xscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.command_listbox = tk.Listbox(self.command_listbox_frame, width=30, height=12,
-                                           yscrollcommand=self.command_listbox_yscrollbar.set,
-                                           xscrollcommand=self.command_listbox_xscrollbar.set)
+        self.command_listbox = tk.Listbox(self.command_listbox_frame, width=30, height=12, font=("", 16),
+                                          yscrollcommand=self.command_listbox_yscrollbar.set,
+                                          xscrollcommand=self.command_listbox_xscrollbar.set)
         self.command_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.command_listbox_yscrollbar.config(command=self.command_listbox.yview)
         self.command_listbox_xscrollbar.config(command=self.command_listbox.xview)
+        
+        # 在 Treeview 中填充電腦文件結構
+        self.populate_tree()
 
         # 綁定雙擊事件來展開/收縮節點
         self.tree.bind("<Double-1>", self.on_double_click)
+        # 綁定節點展開事件
+        self.tree.bind("<<TreeviewOpen>>", self.on_tree_open)
+        
+        # 滑鼠拖拉多選相關變數和事件綁定
+        self.drag_start_item = None
+        self.tree.bind("<ButtonPress-1>", self.on_drag_start)
+        self.tree.bind("<B1-Motion>", self.on_drag_motion)
+        self.tree.bind("<ButtonRelease-1>", self.on_drag_end)
 
     def populate_tree(self):
         # 獲取根目錄
@@ -122,11 +144,13 @@ class FileSystemTreeView:
             # 添加每個驅動器
             for drive in drives:
                 drive_node = self.tree.insert("", "end", text=drive, open=False)
-                self.populate_root_folder(drive_node, f"{drive}\\")
+                # 為每個驅動器創建一個臨時節點
+                self.tree.insert(drive_node, "end", text="", values=("", ""))
         else:
             # Unix/Linux/Mac
             root_node = self.tree.insert("", "end", text="/", open=False)
-            self.populate_root_folder(root_node, "/")
+            # 為根節點創建一個臨時節點
+            self.tree.insert(root_node, "end", text="", values=("", ""))
     
     def get_windows_drives(self):
         # 獲取 Windows 上的所有驅動器
@@ -141,49 +165,112 @@ class FileSystemTreeView:
             bitmask >>= 1
             
         return drives
-    def populate_root_folder(self, parent, path):
+    
+    def populate_folder(self, parent, path):
+        # 先刪除所有現有的子項目（包括臨時節點）
+        for item in self.tree.get_children(parent):
+            self.tree.delete(item)
+            
         try:
-            # 只嘗試列出根目錄的第一級項目
+            # 列出目錄中的所有項目
             items = os.listdir(path)
-            for item in items[:20]:  # 限制項目數以避免加載過多
+            
+            # 分開處理檔案和資料夾
+            folders = []
+            files = []
+            
+            for item in items:
                 item_path = os.path.join(path, item)
                 try:
-                    is_directory = os.path.isdir(item_path)
-
+                    if os.path.isdir(item_path):
+                        folders.append(item)
+                    else:
+                        files.append(item)
+                except:
+                    pass
+            
+            # 先添加資料夾
+            for folder in sorted(folders):
+                folder_path = os.path.join(path, folder)
+                try:
+                    # 獲取修改日期
+                    date = ""
+                    try:
+                        stats = os.stat(folder_path)
+                        date = self.format_date(stats.st_mtime)
+                    except:
+                        pass
+                    
+                    # 插入資料夾到 Treeview
+                    folder_node = self.tree.insert(parent, "end", text=folder, values=("", date))
+                    
+                    # 檢查資料夾是否有內容
+                    try:
+                        has_content = len(os.listdir(folder_path)) > 0
+                    except:
+                        has_content = False
+                    
+                    # 如果資料夾有內容，添加一個臨時節點
+                    if has_content:
+                        self.tree.insert(folder_node, "end", text="", values=("", ""))
+                except:
+                    # 忽略無法訪問的項目
+                    pass
+            
+            # 再添加檔案
+            for file in sorted(files):
+                file_path = os.path.join(path, file)
+                try:
                     # 獲取文件大小和修改日期
                     size = ""
                     date = ""
                     try:
-                        stats = os.stat(item_path)
-                        if not is_directory:
-                            size = self.format_size(stats.st_size)
+                        stats = os.stat(file_path)
+                        size = self.format_size(stats.st_size)
                         date = self.format_date(stats.st_mtime)
                     except:
                         pass
-
-                    # 插入項目到 Treeview
-                    item_node = self.tree.insert(parent, "end", text=item, values=(size, date))
-
-                    # 如果是目錄，添加一個臨時子節點，使其可展開
-                    if is_directory:
-                        self.tree.insert(item_node, "end", text="Loading...", values=("", ""))
+                    
+                    # 插入檔案到 Treeview
+                    self.tree.insert(parent, "end", text=file, values=(size, date))
                 except:
                     # 忽略無法訪問的項目
                     pass
-        except:
-            # 忽略無法訪問的目錄
+        except Exception as e:
+            print(f"Error populating folder {path}: {e}")  # 用於調試
             pass
     
     def on_double_click(self, event):
-        item = self.tree.selection()[0]
+        try:
+            item = self.tree.selection()[0]
+            
+            # 檢查該項目是否已被展開
+            if self.tree.item(item, "open"):
+                # 如果已展開，則收縮
+                self.tree.item(item, open=False)
+            else:
+                # 如果未展開，則展開並加載子項目
+                self.tree.item(item, open=True)
+                
+                # 獲取選中項目的完整路徑
+                path = self.get_full_path(item)
+                
+                # 檢查這是否是一個目錄
+                if os.path.isdir(path):
+                    self.populate_folder(item, path)
+        except IndexError:
+            pass  # 沒有選中項目
+    
+    def on_tree_open(self, event):
+        # 獲取當前打開的項目
+        item = self.tree.focus()
         
-        # 檢查該項目是否已被展開
-        if self.tree.item(item, "open"):
-            # 如果已展開，則收縮
-            self.tree.item(item, open=False)
-        else:
-            # 如果未展開，則展開並加載子項目
-            self.tree.item(item, open=True)
+        # 獲取完整路徑
+        path = self.get_full_path(item)
+        
+        # 檢查這是否是一個目錄
+        if os.path.isdir(path):
+            self.populate_folder(item, path)
     
     def get_full_path(self, item):
         # 獲取項目的完整路徑
@@ -214,6 +301,7 @@ class FileSystemTreeView:
                 return f"{size_bytes:.2f} {unit}"
             size_bytes /= 1024
         return f"{size_bytes:.2f} PB"
+    
     def format_date(self, timestamp):
         # 格式化日期
         from datetime import datetime
@@ -228,6 +316,79 @@ class FileSystemTreeView:
             self.command_listbox.insert(tk.END, item)
         # Delete all items from the original listbox
         self.file_listbox.delete(0, tk.END)
+        # Clear the selected_files list
+        self.selected_files = []
+    
+    # 新增的刪除選定項目的函數
+    def delete_selected_items(self):
+        # 獲取選中的項目索引（從後往前，避免刪除時索引變化）
+        selected_indices = self.file_listbox.curselection()
+        if not selected_indices:
+            return
+            
+        # 將索引轉換為列表並從大到小排序
+        indices_list = sorted(list(selected_indices), reverse=True)
+        
+        # 從後往前刪除選中的項目
+        for index in indices_list:
+            item = self.file_listbox.get(index)
+            # 從self.selected_files中移除
+            if item in self.selected_files:
+                self.selected_files.remove(item)
+            # 從listbox中刪除
+            self.file_listbox.delete(index)
+    
+    # 滑鼠拖拉多選相關函數
+    def on_drag_start(self, event):
+        # 獲取點擊位置的項目
+        item = self.tree.identify_row(event.y)
+        if item:
+            # 如果按下Ctrl鍵，保留當前選擇
+            if not (event.state & 0x0004):  # 0x0004是Ctrl鍵的狀態
+                self.tree.selection_set(item)
+            self.drag_start_item = item
+    
+    def on_drag_motion(self, event):
+        if self.drag_start_item:
+            # 獲取當前鼠標位置的項目
+            current_item = self.tree.identify_row(event.y)
+            if current_item and current_item != self.drag_start_item:
+                # 獲取所有可見的項目
+                visible_items = []
+                
+                # 獲取可見項目（簡化版，只獲取當前顯示的頂層項目及其可見子項目）
+                def get_visible_children(parent):
+                    children = self.tree.get_children(parent)
+                    for child in children:
+                        visible_items.append(child)
+                        if self.tree.item(child, "open"):
+                            get_visible_children(child)
+                
+                # 從根節點開始獲取所有可見項目
+                for top_item in self.tree.get_children():
+                    visible_items.append(top_item)
+                    if self.tree.item(top_item, "open"):
+                        get_visible_children(top_item)
+                
+                # 找出起始項目和當前項目的索引
+                try:
+                    start_idx = visible_items.index(self.drag_start_item)
+                    current_idx = visible_items.index(current_item)
+                    
+                    # 獲取範圍內的所有項目
+                    if start_idx <= current_idx:
+                        selection_range = visible_items[start_idx:current_idx+1]
+                    else:
+                        selection_range = visible_items[current_idx:start_idx+1]
+                    
+                    # 設置選擇
+                    self.tree.selection_set(selection_range)
+                except ValueError:
+                    # 如果項目不在可見列表中（可能在已折疊的節點內）
+                    pass
+    
+    def on_drag_end(self, event):
+        self.drag_start_item = None
 
 
 if __name__ == "__main__":
