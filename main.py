@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import os
 import sys
+import datetime
 
 class FileSystemTreeView:
     def __init__(self, root):
@@ -124,17 +125,19 @@ class FileSystemTreeView:
         
         # 在 Treeview 中填充電腦文件結構
         self.populate_tree()
-
-        # 綁定雙擊事件來展開/收縮節點
-        self.tree.bind("<Double-1>", self.on_double_click)
+        
+        # 滑鼠拖拉多選相關變數
+        self.is_dragging = False
+        self.drag_start_item = None
+        
+        # 綁定事件
+        self.tree.bind("<ButtonPress-1>", self.on_button_press)
+        self.tree.bind("<B1-Motion>", self.on_drag_motion)
+        self.tree.bind("<ButtonRelease-1>", self.on_button_release)
+        self.tree.bind("<Double-Button-1>", self.on_double_click)
+        
         # 綁定節點展開事件
         self.tree.bind("<<TreeviewOpen>>", self.on_tree_open)
-        
-        # 滑鼠拖拉多選相關變數和事件綁定
-        self.drag_start_item = None
-        self.tree.bind("<ButtonPress-1>", self.on_drag_start)
-        self.tree.bind("<B1-Motion>", self.on_drag_motion)
-        self.tree.bind("<ButtonRelease-1>", self.on_drag_end)
 
     def populate_tree(self):
         # 獲取根目錄
@@ -240,35 +243,108 @@ class FileSystemTreeView:
             print(f"Error populating folder {path}: {e}")  # 用於調試
             pass
     
-    def on_double_click(self, event):
-        try:
-            item = self.tree.selection()[0]
+    def on_button_press(self, event):
+        # 获取点击位置的项目
+        item = self.tree.identify_row(event.y)
+        if not item:
+            return
             
-            # 檢查該項目是否已被展開
+        # 检查是否点击在展开/收缩按钮上
+        region = self.tree.identify_region(event.x, event.y)
+        
+        # 记录拖动开始的项目
+        self.is_dragging = False
+        self.drag_start_item = item
+        
+        # 处理选择和展开/收缩逻辑
+        if region == "tree":  # 点击在展开/收缩图标上
+            # 切换展开/收缩状态
+            path = self.get_full_path(item)
+            if os.path.isdir(path):
+                if self.tree.item(item, "open"):
+                    self.tree.item(item, open=False)
+                else:
+                    self.tree.item(item, open=True)
+                    self.populate_folder(item, path)
+        else:  # 点击在项目上（非展开/收缩图标）
+            # 如果按下Ctrl键，保留当前选择，否则清除当前选择并只选择当前项目
+            if not (event.state & 0x0004):  # 0x0004是Ctrl键的状态
+                self.tree.selection_set(item)
+    
+    def on_drag_motion(self, event):
+        if not self.drag_start_item:
+            return
+            
+        # 标记为正在拖动
+        self.is_dragging = True
+        
+        # 获取当前鼠标位置的项目
+        current_item = self.tree.identify_row(event.y)
+        if not current_item:
+            return
+            
+        # 获取所有可见的项目
+        visible_items = []
+        
+        # 获取可见项目（简化版，只获取当前显示的顶层项目及其可见子项目）
+        def get_visible_children(parent):
+            children = self.tree.get_children(parent)
+            for child in children:
+                visible_items.append(child)
+                if self.tree.item(child, "open"):
+                    get_visible_children(child)
+        
+        # 从根节点开始获取所有可见项目
+        for top_item in self.tree.get_children():
+            visible_items.append(top_item)
+            if self.tree.item(top_item, "open"):
+                get_visible_children(top_item)
+        
+        # 找出起始项目和当前项目的索引
+        try:
+            start_idx = visible_items.index(self.drag_start_item)
+            current_idx = visible_items.index(current_item)
+            
+            # 获取范围内的所有项目
+            if start_idx <= current_idx:
+                selection_range = visible_items[start_idx:current_idx+1]
+            else:
+                selection_range = visible_items[current_idx:start_idx+1]
+            
+            # 设置选择
+            self.tree.selection_set(selection_range)
+        except ValueError:
+            # 如果项目不在可见列表中（可能在已折叠的节点内）
+            pass
+    
+    def on_button_release(self, event):
+        # 释放时，只需重置拖动状态
+        self.drag_start_item = None
+        self.is_dragging = False
+    
+    def on_double_click(self, event):
+        # 双击事件处理 - 这里主要用于展开/收缩文件夹
+        item = self.tree.identify_row(event.y)
+        if not item:
+            return
+            
+        # 检查该项目是否是文件夹
+        path = self.get_full_path(item)
+        if os.path.isdir(path):
             if self.tree.item(item, "open"):
-                # 如果已展開，則收縮
                 self.tree.item(item, open=False)
             else:
-                # 如果未展開，則展開並加載子項目
                 self.tree.item(item, open=True)
-                
-                # 獲取選中項目的完整路徑
-                path = self.get_full_path(item)
-                
-                # 檢查這是否是一個目錄
-                if os.path.isdir(path):
-                    self.populate_folder(item, path)
-        except IndexError:
-            pass  # 沒有選中項目
+                self.populate_folder(item, path)
     
     def on_tree_open(self, event):
-        # 獲取當前打開的項目
+        # 获取当前打开的项目
         item = self.tree.focus()
         
-        # 獲取完整路徑
+        # 获取完整路径
         path = self.get_full_path(item)
         
-        # 檢查這是否是一個目錄
+        # 检查这是否是一个目录
         if os.path.isdir(path):
             self.populate_folder(item, path)
     
@@ -337,58 +413,6 @@ class FileSystemTreeView:
                 self.selected_files.remove(item)
             # 從listbox中刪除
             self.file_listbox.delete(index)
-    
-    # 滑鼠拖拉多選相關函數
-    def on_drag_start(self, event):
-        # 獲取點擊位置的項目
-        item = self.tree.identify_row(event.y)
-        if item:
-            # 如果按下Ctrl鍵，保留當前選擇
-            if not (event.state & 0x0004):  # 0x0004是Ctrl鍵的狀態
-                self.tree.selection_set(item)
-            self.drag_start_item = item
-    
-    def on_drag_motion(self, event):
-        if self.drag_start_item:
-            # 獲取當前鼠標位置的項目
-            current_item = self.tree.identify_row(event.y)
-            if current_item and current_item != self.drag_start_item:
-                # 獲取所有可見的項目
-                visible_items = []
-                
-                # 獲取可見項目（簡化版，只獲取當前顯示的頂層項目及其可見子項目）
-                def get_visible_children(parent):
-                    children = self.tree.get_children(parent)
-                    for child in children:
-                        visible_items.append(child)
-                        if self.tree.item(child, "open"):
-                            get_visible_children(child)
-                
-                # 從根節點開始獲取所有可見項目
-                for top_item in self.tree.get_children():
-                    visible_items.append(top_item)
-                    if self.tree.item(top_item, "open"):
-                        get_visible_children(top_item)
-                
-                # 找出起始項目和當前項目的索引
-                try:
-                    start_idx = visible_items.index(self.drag_start_item)
-                    current_idx = visible_items.index(current_item)
-                    
-                    # 獲取範圍內的所有項目
-                    if start_idx <= current_idx:
-                        selection_range = visible_items[start_idx:current_idx+1]
-                    else:
-                        selection_range = visible_items[current_idx:start_idx+1]
-                    
-                    # 設置選擇
-                    self.tree.selection_set(selection_range)
-                except ValueError:
-                    # 如果項目不在可見列表中（可能在已折疊的節點內）
-                    pass
-    
-    def on_drag_end(self, event):
-        self.drag_start_item = None
 
 
 if __name__ == "__main__":
