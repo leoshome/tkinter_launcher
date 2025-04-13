@@ -25,19 +25,38 @@ class FileSystemTreeView:
         # Main frame
         self.main_frame = ttk.Frame(root, style="TFrame")
         self.main_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
-        self.main_frame.rowconfigure(0, weight=1)
+        self.main_frame.rowconfigure(1, weight=1)  # 修改为1，为路径输入框留出空间
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.columnconfigure(1, weight=1)
 
+        # 添加路径输入框和按钮
+        self.path_frame = ttk.Frame(self.main_frame)
+        self.path_frame.grid(row=0, column=0, columnspan=2, sticky=tk.EW, pady=(0, 10))
+        self.path_frame.columnconfigure(0, weight=0)
+        self.path_frame.columnconfigure(1, weight=1)
+        self.path_frame.columnconfigure(2, weight=0)
+        
+        self.path_label = ttk.Label(self.path_frame, text="路徑:")
+        self.path_label.grid(row=0, column=0, padx=(0, 5))
+        
+        self.path_entry = ttk.Entry(self.path_frame, font=("", 16))
+        self.path_entry.grid(row=0, column=1, sticky=tk.EW)
+        
+        self.go_button = ttk.Button(self.path_frame, text="前往", command=self.navigate_to_path)
+        self.go_button.grid(row=0, column=2, padx=(5, 0))
+        
+        # 绑定回车键
+        self.path_entry.bind("<Return>", lambda event: self.navigate_to_path())
+
         # Left frame for Treeview and scrollbar
         self.left_frame = ttk.Frame(self.main_frame)
-        self.left_frame.grid(row=0, column=0, sticky=tk.NSEW)
+        self.left_frame.grid(row=1, column=0, sticky=tk.NSEW)  # 修改row为1
         self.left_frame.rowconfigure(0, weight=1)
         self.left_frame.columnconfigure(0, weight=1)
 
         # Right frame for button and listbox
         self.right_frame = ttk.Frame(self.main_frame)
-        self.right_frame.grid(row=0, column=1, sticky=tk.NSEW)
+        self.right_frame.grid(row=1, column=1, sticky=tk.NSEW)  # 修改row为1
 
         # Treeview frame
         self.tree_frame = ttk.Frame(self.left_frame)
@@ -257,15 +276,11 @@ class FileSystemTreeView:
         self.drag_start_item = item
         
         # 处理选择和展开/收缩逻辑
-        if region == "tree":  # 点击在展开/收缩图标上
+        if region in ("tree", "image"):  # 点击在展开/收缩图标上
             # 切换展开/收缩状态
             path = self.get_full_path(item)
             if os.path.isdir(path):
-                if self.tree.item(item, "open"):
-                    self.tree.item(item, open=False)
-                else:
-                    self.tree.item(item, open=True)
-                    self.populate_folder(item, path)
+                self.populate_folder(item, path)
         else:  # 点击在项目上（非展开/收缩图标）
             # 如果按下Ctrl键，保留当前选择，否则清除当前选择并只选择当前项目
             if not (event.state & 0x0004):  # 0x0004是Ctrl键的状态
@@ -338,12 +353,13 @@ class FileSystemTreeView:
                 self.populate_folder(item, path)
     
     def on_tree_open(self, event):
+        print("TreeviewOpen")
         # 获取当前打开的项目
         item = self.tree.focus()
-        
+
         # 获取完整路径
         path = self.get_full_path(item)
-        
+
         # 检查这是否是一个目录
         if os.path.isdir(path):
             self.populate_folder(item, path)
@@ -413,7 +429,97 @@ class FileSystemTreeView:
                 self.selected_files.remove(item)
             # 從listbox中刪除
             self.file_listbox.delete(index)
-
+    
+    # 添加导航到指定路径的方法
+    def navigate_to_path(self):
+        path = self.path_entry.get().strip()
+        if not path or not os.path.exists(path):
+            return
+        
+        # 确保路径格式正确
+        path = os.path.normpath(path)
+        
+        # 分解路径
+        if sys.platform == "win32":
+            # Windows路径
+            parts = []
+            drive, remaining = os.path.splitdrive(path)
+            if drive:
+                parts.append(drive)
+                
+            # 移除开头的斜杠
+            remaining = remaining.lstrip('\\/')
+            
+            # 分割剩余部分
+            if remaining:
+                parts.extend(remaining.split('\\'))
+        else:
+            # Unix路径
+            path = path.lstrip('/')
+            parts = path.split('/') if path else []
+        
+        # 展开到指定路径
+        self.expand_to_path(parts)
+    
+    def expand_to_path(self, path_parts):
+        if not path_parts:
+            return
+            
+        # 找到根节点（驱动器或根目录）
+        root_items = self.tree.get_children()
+        current_item = None
+        
+        # 查找匹配的根节点
+        for item in root_items:
+            item_text = self.tree.item(item, "text")
+            if path_parts[0] == item_text:
+                current_item = item
+                break
+        
+        if not current_item:
+            return
+            
+        # 展开根节点
+        self.tree.item(current_item, open=True)
+        current_path = path_parts[0]
+        
+        # 如果是Windows，确保路径正确
+        if sys.platform == "win32" and not current_path.endswith(':'):
+            current_path += ':'
+            
+        # 填充根节点的子节点
+        self.populate_folder(current_item, current_path)
+        
+        # 逐级展开子节点
+        for i in range(1, len(path_parts)):
+            found = False
+            part = path_parts[i]
+            
+            # 构建当前路径
+            if sys.platform == "win32":
+                current_path = os.path.join(current_path, part)
+            else:
+                current_path = "/" + "/".join(path_parts[:i+1])
+            
+            # 查找匹配的子节点
+            for child in self.tree.get_children(current_item):
+                if self.tree.item(child, "text") == part:
+                    current_item = child
+                    found = True
+                    break
+            
+            if not found:
+                break
+                
+            # 展开找到的节点
+            self.tree.item(current_item, open=True)
+            self.populate_folder(current_item, current_path)
+        
+        # 选中最终找到的节点
+        if current_item:
+            self.tree.see(current_item)
+            self.tree.selection_set(current_item)
+            self.tree.focus(current_item)
 
 if __name__ == "__main__":
     root = tk.Tk()
